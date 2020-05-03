@@ -1,0 +1,291 @@
+---
+title: "Homework 3"
+author: "Kevin Sanchez"
+date: "05/03/2020"
+output: html_document
+---
+
+## Challenge 1
+``` {r}
+library(curl)
+file <- curl("https://raw.githubusercontent.com/difiore/ADA-datasets/master/KamilarAndCooperData.csv")
+KC_Raw <- read.csv(file, header = TRUE, sep = ",", stringsAsFactors = FALSE)
+head(KC_Raw)
+
+library(ggplot2)
+fit = lm(KC_Raw$MaxLongevity_m ~ KC_Raw$Brain_Size_Species_Mean)
+summary(fit)
+
+LvBS <- ggplot(data = KC_Raw, aes(x = Brain_Size_Species_Mean, y = MaxLongevity_m)) +
+  geom_point(na.rm = TRUE) +
+  xlab("Species Brain Size (g)") + 
+  ylab("Longevity (mos)") +
+  geom_smooth(method = "lm", na.rm = TRUE) +
+  annotate("text", label = "y = 248.9523 + (1.2180 * x)", size = 4, x = 350, y = 250)
+LvBS
+
+library(dplyr)
+KC_Raw <- KC_Raw %>%  mutate(
+  log_MaxLongevity_m = log(MaxLongevity_m),
+  log_Brain_Size_Species_Mean = log(Brain_Size_Species_Mean)
+)
+
+fit_log = lm(KC_Raw$log_MaxLongevity_m ~ KC_Raw$log_Brain_Size_Species_Mean)
+summary(fit_log)
+
+log_LvBS <- ggplot(data = KC_Raw, aes(x = log_Brain_Size_Species_Mean, y = log_MaxLongevity_m)) +
+  geom_point(na.rm = TRUE) +
+  xlab("log(Species Brain Size [g])") + 
+  ylab("log(Longevity [mos])") +
+  geom_smooth(method = "lm", na.rm = TRUE) +
+  annotate("text", label = "y = 4.8790 + (0.2342 * x)", size = 4, x = 4, y = 5)
+log_LvBS
+```
+
+The null hypothesis states that we would expect the point estimate of the slope to be
+equal to zero, whereas the alternative hypothesis is that the slope is non-zero. From the
+original data, the slope is equal to 1.2180 mos/g. Similarly, the slope in the
+log-transformed data is 0.2342 log(mos)/log(g). In both cases, we reject the null
+hypothesis in favor of the alternative hypothesis. Additionally, the greater the magnitude
+of the t-statistic, the more likely it is to reject the null hypothesis. Both the original
+and transformed data have a Pr(>|t|) of under 0.001. 
+``` {r}
+library(broom)
+(CI_original <- tidy(fit, conf.int = TRUE, conf.level = 0.90))
+(CI_transformed <- tidy(fit_log, conf.int = TRUE, conf.level = 0.90))
+```
+
+The 90% confidence interval for the slope in the original data is between 1.04 and 1.40 
+mos/g. In the log-transformed data, this 90% confidence interval for the slope is between
+0.205 and 0.264 log(mos)/log(g).
+``` {r}
+alpha = 0.10
+
+CI_fit <- predict(fit, 
+  newdata = data.frame(Brain_Size_Species_Mean = KC_Raw$Brain_Size_Species_Mean), 
+  interval = "confidence", level = 1 - alpha)
+CI_fit <- data.frame(CI_fit)
+CI_fit <- cbind(KC_Raw$Brain_Size_Species_Mean, CI_fit)
+names(CI_fit) <- c("Brain_Size", "c.fit", "c.lwr", "c.upr")
+
+PI_fit <- predict(fit, 
+  newdata = data.frame(Brain_Size_Species_Mean = KC_Raw$Brain_Size_Species_Mean), 
+  interval = "prediction", level = 1 - alpha)
+PI_fit <- data.frame(PI_fit)
+PI_fit <- cbind(KC_Raw$Brain_Size_Species_Mean, PI_fit)
+names(PI_fit) <- c("Brain_Size", "p.fit", "p.lwr", "p.upr")
+
+LvBS_CP <- ggplot(KC_Raw, aes(y = MaxLongevity_m, x = Brain_Size_Species_Mean)) +
+  geom_point(na.rm = TRUE) +
+  xlab("Species Brain Size (g)") + 
+  ylab("Longevity (mos)") +
+  annotate("text", label = "y = 248.9523 + (1.2180 * x)", size = 4, x = 350, y = 250) +
+  geom_line(data = CI_fit, aes(x = Brain_Size, y = c.fit, color = "black"), na.rm = TRUE) +
+  geom_line(data = CI_fit, aes(x = Brain_Size, y = c.lwr, color = "blue"), na.rm = TRUE) +
+  geom_line(data = CI_fit, aes(x = Brain_Size, y = c.upr, color = "blue"), na.rm = TRUE) +
+  geom_line(data = PI_fit, aes(x = Brain_Size, y = p.lwr, color = "green"), na.rm = TRUE) +
+  geom_line(data = PI_fit, aes(x = Brain_Size, y = p.upr, color = "green"), na.rm = TRUE) +
+  scale_color_hue(labels = c("Fit", "Confidence Interval", "Prediction Interval"))
+LvBS_CP
+
+CI_fit_log <- predict(fit_log, 
+  newdata = data.frame(log_Brain_Size_Species_Mean = KC_Raw$log_Brain_Size_Species_Mean), 
+  interval = "confidence", level = 1 - alpha)
+CI_fit_log <- data.frame(CI_fit_log)
+CI_fit_log <- cbind(KC_Raw$log_Brain_Size_Species_Mean, CI_fit_log)
+names(CI_fit_log) <- c("log_Brain_Size", "c.fit", "c.lwr", "c.upr")
+
+PI_fit_log <- predict(fit_log, 
+  newdata = data.frame(log_Brain_Size_Species_Mean = KC_Raw$log_Brain_Size_Species_Mean), 
+  interval = "prediction", level = 1 - alpha)
+PI_fit_log <- data.frame(PI_fit_log)
+PI_fit_log <- cbind(KC_Raw$log_Brain_Size_Species_Mean, PI_fit_log)
+names(PI_fit_log) <- c("log_Brain_Size", "p.fit", "p.lwr", "p.upr")
+
+LvBS_CP_log <- ggplot(KC_Raw, aes(y = log_MaxLongevity_m, x = log_Brain_Size_Species_Mean)) +
+  geom_point(na.rm = TRUE) +
+  xlab("log(Species Brain Size [g])") + 
+  ylab("log(Longevity [mos])") +
+  annotate("text", label = "y = 4.8790 + (0.2342 * x)", size = 4, x = 4, y = 5) +
+  geom_line(data = CI_fit_log, aes(x = log_Brain_Size, y = c.fit, color = "black"), na.rm = TRUE) +
+  geom_line(data = CI_fit_log, aes(x = log_Brain_Size, y = c.lwr, color = "blue"), na.rm = TRUE) +
+  geom_line(data = CI_fit_log, aes(x = log_Brain_Size, y = c.upr, color = "blue"), na.rm = TRUE) +
+  geom_line(data = PI_fit_log, aes(x = log_Brain_Size, y = p.lwr, color = "green"), na.rm = TRUE) +
+  geom_line(data = PI_fit_log, aes(x = log_Brain_Size, y = p.upr, color = "green"), na.rm = TRUE) +
+  scale_color_hue(labels = c("Fit", "Confidence Interval", "Prediction Interval"))
+LvBS_CP_log
+
+(L_750 <- 248.9523 + (1.2180 * 750))
+L_750_P <- predict(fit, 
+  newdata = data.frame(Brain_Size_Species_Mean = 750),
+  interval = "prediction",
+  level = 1 - alpha,
+  na.rm = TRUE)
+L_750_P
+
+(L_750_log <- 4.8790 + (0.2342 * 2.87506))
+L_750_log_P <- predict(fit_log, 
+  newdata = data.frame(log_Brain_Size_Species_Mean = 2.87506),
+  interval = "prediction",
+  level = 1 - alpha,
+  na.rm = TRUE)
+L_750_log_P
+```
+
+The point estimate for longevity of a species with a brain mass of 750 g was 1,162.5 mos
+(or 96.9 yrs). This is outside the range based on the model and there were no species with
+either a brain mass or longevity of this magnitude. Therefore, I would not trust the model
+to predict and extrapolate observations that are far off from the points in the data set. 
+
+The log-log transformed data appears to be better. It has both a higher t-statistic and
+R<sup>2</sup> value compared to the original data. This indicates a better linear fit and 
+likelihood of rejecting the null hypothesis, respectively.
+
+## Challenge 2
+``` {r}
+KC_Raw <- KC_Raw %>%  mutate(
+  log_HomeRange_km2 = log(HomeRange_km2),
+  log_Body_mass_female_mean = log(Body_mass_female_mean))
+
+(RvFBM <- lm(KC_Raw$log_HomeRange_km2 ~ KC_Raw$log_Body_mass_female_mean))
+```
+The slope is equal to 1.036 log(km<sup>2</sup>)/log(kg) and the intercept is -9.441
+log(km<sup>2</sup>).
+``` {r}
+library(infer)
+boot.strap <- KC_Raw %>% 
+  specify(log_HomeRange_km2 ~ log_Body_mass_female_mean) %>% 
+  generate(reps = 1000, type = "bootstrap")
+
+slope <- vector()
+intercept <- vector()
+for (i in 1:137) {
+  Reps <- filter(boot.strap, replicate == i)
+  RvFBM_B <- lm(log_HomeRange_km2 ~ log_Body_mass_female_mean, data = Reps)
+  slope[[i]] <- RvFBM_B$coefficients[[2]]
+  intercept[[i]] <- RvFBM_B$coefficients[[1]]
+}
+
+RvFBM_Boot <- tibble(slope = slope, intercept = intercept)
+
+hist(RvFBM_Boot$slope,
+  main = "Histogram of Slope Values",
+  xlab = "Slope")
+
+hist(RvFBM_Boot$intercept,
+  main = "Histogram of Intercept Values",
+  xlab = "Intercept")
+
+alpha <- 0.05
+CI_level <- 1 - alpha
+p_lower <- alpha / 2
+p_upper <- 1 - (alpha / 2)
+DOF <- nrow(RvFBM_Boot) - 2
+crit_value <- qt(p_upper, df = DOF)
+
+boot.slope.summary <- RvFBM_Boot %>% 
+  summarize(
+    estimate = mean(slope),
+    std.error = sd(slope),
+    lower = estimate - std.error * crit_value,
+    upper = estimate + std.error * crit_value,
+    boot.lower = quantile(slope, p_lower),
+    boot.upper = quantile(slope, p_upper)
+    )
+boot.slope.summary
+ 
+boot.intercept.summary <- RvFBM_Boot %>% 
+  summarize(
+    estimate = mean(intercept),
+    std.error = sd(intercept),
+    lower = estimate - std.error * crit_value,
+    upper = estimate + std.error * crit_value,
+    boot.lower = quantile(intercept, p_lower),
+    boot.upper = quantile(intercept, p_upper)
+    )
+boot.intercept.summary
+
+fit_log <- lm(KC_Raw$log_HomeRange_km2 ~ KC_Raw$log_Body_mass_female_mean)
+summary(fit_log)
+(CI_transformed <- tidy(fit_log, conf.int = TRUE, conf.level = 0.95))
+```
+Using the `lm()` function, the 95% confidence interval for the slope of the linear fit was
+between 0.869 and 1.20 log(km<sup>2</sup>)/log(kg). This is extraordinarily similar to the
+same confidence interval generated using the bootstraped method, which was between 0.8686
+and 1.2043 log(km<sup>2</sup>)/log(kg).
+
+Similarly, the standard error for the slope using the `lm()` function was 0.0849 
+log(km<sup>2</sup>). This was nearly identical to the standard error created from the 
+bootstraped data that was 0.08488 log(km<sup>2</sup>).
+
+## Challenge 3
+``` {r}
+boot_lm <- function(d, model, conf.level = 0.95, reps = 1000) {
+  d_mod <- d %>% mutate(
+    logHR = log(HomeRange_km2),
+    logFBM = log(Body_mass_female_mean),
+    logDL = log(DayLength_km),
+    MGS = MeanGroupSize
+    )
+
+  model <- as.formula(model)
+
+  fit <- lm(model, data = d_mod)
+
+  boot.strap <- d_mod %>% 
+    generate(reps = reps, type = "bootstrap")
+
+  slope <- vector()
+  intercept <- vector()
+  
+  for (i in 1:137) {
+    Reps <- filter(boot.strap, replicate == i)
+    Boot <- lm(model, data = Reps)
+    slope[[i]] <- Boot$coefficients[[2]]
+    intercept[[i]] <- Boot$coefficients[[1]]
+  }
+
+  Bootstrap <- tibble(
+    slope = slope, 
+    intercept = intercept)
+
+  confidence_level <- conf.level
+  alpha <- 1 - confidence_level
+  p_lower <- alpha / 2
+  p_upper <- 1 - (alpha / 2)
+  DOF <- nrow(Bootstrap) - 2
+  crit_value <- qt(p_upper, df = DOF)
+  
+  Bootstrap <- Bootstrap %>% 
+    summarize(
+      model.type = "Bootstrap",
+      slope.M = mean(slope, na.rm = TRUE), 
+      slope.SE = sd(slope, na.rm = TRUE),
+      slope.CI_l = quantile(slope, p_lower, na.rm = TRUE),
+      slope.CI_u = quantile(slope, p_upper, na.rm = TRUE),
+      intercept.M = mean(intercept, na.rm = TRUE),
+      intercept.SE = sd(intercept, na.rm = TRUE),
+      intercept.CI_l = quantile(intercept, p_lower, na.rm = TRUE),
+      intercept.CI_u = quantile(intercept, p_upper, na.rm = TRUE)
+      )
+
+  lm_mod <- tibble(
+    model.type = "LRM",
+    slope.M = fit$coefficients[2],
+    slope.SE = tidy(fit)$std.error[2],
+    slope.CI_l =  tidy(fit, conf.int = TRUE, conf.level = confidence_level)$conf.low[2],
+    slope.CI_u =  tidy(fit, conf.int = TRUE, conf.level = confidence_level)$conf.high[2],
+    intercept.M = fit$coefficients[1],
+    intercept.SE = tidy(fit)$std.error[1],
+    intercept.CI_l = tidy(fit, conf.int = TRUE, conf.level = confidence_level)$conf.low[1],
+    intercept.CI_u = tidy(fit, conf.int = TRUE, conf.level = confidence_level)$conf.high[1]
+    )
+
+  lmvB <- rbind(lm_mod, Bootstrap)
+  lmvB
+}
+
+boot_lm(d = KC_Raw, model = "logHR ~ logFBM")
+boot_lm(d = KC_Raw, model = "logDL ~ logFBM")
+boot_lm(d = KC_Raw, model = "logHR ~ logFBM + MGS")
+```
